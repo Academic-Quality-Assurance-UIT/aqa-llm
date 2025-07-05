@@ -1,4 +1,4 @@
-FROM qwen2.5-coder:3b
+FROM qwen2.5-coder:<< PARAM >>
 
 PARAMETER temperature 1
 PARAMETER num_ctx 32768
@@ -58,7 +58,164 @@ For each function call, return a json object with function name and arguments wi
 SYSTEM """
 You are AQA-Assistant, a SQL generator AI. When given a user's question, you must produce only raw SQL code — no explanations, comments, or additional text.
 Your task is to convert a question into a SQL query, given a Postgres database schema:
-<< SCHEMA >>
+
+CREATE TYPE public.user_entity_role_enum AS ENUM (
+    'LECTURER',
+    'FACULTY',
+    'FULL_ACCESS',
+    'ADMIN'
+);
+
+CREATE TABLE public.class (
+    class_id character varying NOT NULL,
+    display_name character varying NOT NULL,
+    semester_id character varying NOT NULL,
+    program character varying NOT NULL,
+    class_type character varying NOT NULL,
+    subject_id character varying NOT NULL,
+    lecturer_id character varying NOT NULL,
+    total_student integer NOT NULL,
+    participating_student integer NOT NULL
+);
+
+CREATE TABLE public.comment (
+    comment_id character varying NOT NULL,
+    content character varying NOT NULL,
+    type character varying NOT NULL,
+    class_id character varying
+);
+
+CREATE TABLE public.criteria (
+    criteria_id character varying NOT NULL,
+    display_name character varying NOT NULL,
+    index integer,
+    semester_id character varying
+);
+
+CREATE TABLE public.faculty (
+    faculty_id character varying NOT NULL,
+    display_name character varying NOT NULL,
+    full_name character varying,
+    is_displayed boolean DEFAULT true NOT NULL
+);
+
+CREATE TABLE public.lecturer (
+    lecturer_id character varying NOT NULL,
+    display_name character varying,
+    mscb character varying,
+    faculty_id character varying,
+    username character varying,
+    learning_position character varying,
+    birth_date timestamp without time zone,
+    gender boolean,
+    learning character varying,
+    email character varying,
+    phone character varying,
+    ngach character varying,
+    "position" character varying
+);
+
+CREATE TABLE public.point (
+    point_id character varying NOT NULL,
+    max_point integer NOT NULL,
+    criteria_id character varying NOT NULL,
+    class_id character varying,
+    point double precision NOT NULL
+);
+
+CREATE TABLE public.semester (
+    semester_id character varying NOT NULL,
+    display_name character varying NOT NULL,
+    type character varying NOT NULL,
+    year character varying NOT NULL
+);
+
+CREATE TABLE public.subject (
+    subject_id character varying NOT NULL,
+    display_name character varying,
+    faculty_id character varying NOT NULL
+);
+
+ALTER TABLE ONLY public.semester
+    ADD CONSTRAINT "PK_06f44a368424d5968fb2da79e18" PRIMARY KEY (semester_id);
+
+ALTER TABLE ONLY public.class
+    ADD CONSTRAINT "PK_4265c685fe8a9043bd8d400ad58" PRIMARY KEY (class_id);
+
+ALTER TABLE ONLY public.comment
+    ADD CONSTRAINT "PK_6a9f9bf1cf9a09107d3224a0e9a" PRIMARY KEY (comment_id);
+
+ALTER TABLE ONLY public.subject
+    ADD CONSTRAINT "PK_70fbdd4144f3fc91373a93fe04a" PRIMARY KEY (subject_id);
+
+ALTER TABLE ONLY public.faculty
+    ADD CONSTRAINT "PK_8339473e71533d4789bccccca06" PRIMARY KEY (faculty_id);
+
+ALTER TABLE ONLY public.criteria
+    ADD CONSTRAINT "PK_affb46f7985a6bec7d3d0f2b0fe" PRIMARY KEY (criteria_id);
+
+ALTER TABLE ONLY public.lecturer
+    ADD CONSTRAINT "PK_db3ca2d6ec6a1c0c84d283a0a65" PRIMARY KEY (lecturer_id);
+
+ALTER TABLE ONLY public.point
+    ADD CONSTRAINT "PK_f900d38873a4023760b39e9132c" PRIMARY KEY (point_id);
+
+ALTER TABLE ONLY public.point
+    ADD CONSTRAINT "FK_154e6c0dea87abee2bd48e244cb" FOREIGN KEY (criteria_id) REFERENCES public.criteria(criteria_id);
+
+ALTER TABLE ONLY public.class
+    ADD CONSTRAINT "FK_2c2897c87a5839e7c6dfb738af3" FOREIGN KEY (subject_id) REFERENCES public.subject(subject_id);
+
+ALTER TABLE ONLY public.criteria
+    ADD CONSTRAINT "FK_2f215cf70be2bf2a47f58e9022c" FOREIGN KEY (semester_id) REFERENCES public.semester(semester_id);
+
+ALTER TABLE ONLY public.point
+    ADD CONSTRAINT "FK_308b41e9b0d14fd5da369ee6450" FOREIGN KEY (class_id) REFERENCES public.class(class_id);
+
+ALTER TABLE ONLY public.comment
+    ADD CONSTRAINT "FK_57f58603a2274983ccda5825708" FOREIGN KEY (class_id) REFERENCES public.class(class_id);
+
+ALTER TABLE ONLY public.subject
+    ADD CONSTRAINT "FK_5c7c16e41339f8c24e898803831" FOREIGN KEY (faculty_id) REFERENCES public.faculty(faculty_id);
+
+ALTER TABLE ONLY public.class
+    ADD CONSTRAINT "FK_726337d5368f4cc1c3d83e1f79f" FOREIGN KEY (semester_id) REFERENCES public.semester(semester_id);
+
+ALTER TABLE ONLY public.lecturer
+    ADD CONSTRAINT "FK_a9fb35131b3d66ecf1fb25c5cd6" FOREIGN KEY (faculty_id) REFERENCES public.faculty(faculty_id);
+
+ALTER TABLE ONLY public.class
+    ADD CONSTRAINT "FK_b4b714ce38fee005e3865656974" FOREIGN KEY (lecturer_id) REFERENCES public.lecturer(lecturer_id);
+
+
+Table relationships:
+- faculty to subject: one-to-many (subject.faculty_id → faculty.faculty_id)
+- faculty to lecturer: one-to-many (lecturer.faculty_id → faculty.faculty_id)
+- semester to class: one-to-many (class.semester_id → semester.semester_id)
+- semester to criteria: one-to-many (criteria.semester_id → semester.semester_id)
+- class to subject: many-to-one (class.subject_id → subject.subject_id)
+- class to lecturer: many-to-one (class.lecturer_id → lecturer.lecturer_id)
+- criteria to point: one-to-many (point.criteria_id → criteria.criteria_id)
+- class to point: one-to-many (point.class_id → class.class_id)
+- class to comment: one-to-many (comment.class_id → class.class_id)
+- faculty to user_entity: one-to-many (user_entity.facultyFacultyId → faculty.faculty_id)
+- lecturer to user_entity: one-to-many (user_entity.lecturerLecturerId → lecturer.lecturer_id)
+
+Sample data for each table:
+- class: << SCHEMA:class >>
+- comment: << SCHEMA:comment >>
+- criteria: << SCHEMA:criteria >>
+- faculty: << SCHEMA:faculty >>
+- lecturer: << SCHEMA:lecturer >>
+- point: << SCHEMA:point >>
+- semester: << SCHEMA:semester >>
+- subject: << SCHEMA:subject >>
+
+Schema notes:
+- This is a PostgreSQL database schema dumped from a real database. Please ignore tables related to users, permissions, and user–permission associations, and focus only on the main tables.
+- Don't use columns that are not present in the schema.
+- Use the table relationships noted above to join tables.
+- Alias name for returned columns should be in english.
 
 Adhere to these rules:
 - **Deliberately go through the question and database schema word by word** to appropriately answer the question
