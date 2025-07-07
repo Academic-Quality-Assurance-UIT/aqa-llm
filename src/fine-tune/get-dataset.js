@@ -1,61 +1,72 @@
-FROM hf.co/hoanghy/text-to-sql-chart:Q4_K_M
+const fs = require("fs");
+const path = require("path");
+const readline = require("readline");
+const axios = require("axios");
 
-PARAMETER temperature 1
-PARAMETER num_ctx 32768
+async function buildDataset() {
+	const inputPath = path.resolve(__dirname, "./data/raw-log.log");
+	const outputPath = path.resolve(__dirname, "./data/dataset.json");
+	const apiUrl = "http://localhost:11434/api/generate";
+	const regex = /SELECT\b[\s\S]*$/i;
 
-TEMPLATE """{{- if .Suffix }}<|fim_prefix|>{{ .Prompt }}<|fim_suffix|>{{ .Suffix }}<|fim_middle|>
-{{- else if .Messages }}
-{{- if or .System .Tools }}<|im_start|>system
-{{- if .System }}
-{{ .System }}
-{{- end }}
-{{- if .Tools }}
+	fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 
-# Tools
+	const rl = readline.createInterface({
+		input: fs.createReadStream(inputPath, { encoding: "utf8" }),
+		crlfDelay: Infinity,
+	});
 
-You may call one or more functions to assist with the user query.
+	const results = [];
+	for await (const line of rl) {
+		const match = regex.exec(line);
+		if (!match) continue;
+		const sql = match[0];
 
-You are provided with function signatures within <tools></tools>:
-<tools>
-{{- range .Tools }}
-{"type": "function", "function": {{ .Function }}}
-{{- end }}
-</tools>
+		try {
+			const res = await axios.post(apiUrl, {
+				model: "sql-dataset-generating",
+				prompt: sql,
+				stream: false,
+			});
+			if (!res.status || res.status !== 200) {
+				console.error(`Error: Received status ${res.statusText} from API`);
+				continue;
+			}
+			const data = res.data;
+			const { question, description, ...modelResponse } = JSON.parse(
+				extractJsonBlock(data.response)
+			);
 
-For each function call, return a json object with function name and arguments within <tool_call></tool_call> with NO other text. Do not include any backticks or ```json.
-<tool_call>
-{"name": <function-name>, "arguments": <args-json-object>}
-</tool_call>
-{{- end }}<|im_end|>
-{{ end }}
-{{- range $i, $_ := .Messages }}
-{{- $last := eq (len (slice $.Messages $i)) 1 -}}
-{{- if eq .Role "user" }}<|im_start|>user
-{{ .Content }}<|im_end|>
-{{ else if eq .Role "assistant" }}<|im_start|>assistant
-{{ if .Content }}{{ .Content }}
-{{- else if .ToolCalls }}<tool_call>
-{{ range .ToolCalls }}{"name": "{{ .Function.Name }}", "arguments": {{ .Function.Arguments }}}
-{{ end }}</tool_call>
-{{- end }}{{ if not $last }}<|im_end|>
-{{ end }}
-{{- else if eq .Role "tool" }}<|im_start|>user
-<tool_response>
-{{ .Content }}
-</tool_response><|im_end|>
-{{ end }}
-{{- if and (ne .Role "assistant") $last }}<|im_start|>assistant
-{{ end }}
-{{- end }}
-{{- else }}
-{{- if .System }}<|im_start|>system
-{{ .System }}<|im_end|>
-{{ end }}{{ if .Prompt }}<|im_start|>user
-{{ .Prompt }}<|im_end|>
-{{ end }}<|im_start|>assistant
-{{ end }}{{ .Response }}{{ if .Response }}<|im_end|>{{ end }}"""
+			const chatText = getChatTemplate(
+				question,
+				JSON.stringify({
+					query: sql,
+					...modelResponse,
+				})
+			);
+			results.push({
+				text: chatText,
+			});
+	        fs.writeFileSync(outputPath, JSON.stringify(results, null, 2), "utf8");
+            console.log(`✅ Processed: ${results.length} records`);
+		} catch (err) {
+			console.log(err);
+		}
+	}
 
-SYSTEM """
+	fs.writeFileSync(outputPath, JSON.stringify(results, null, 2), "utf8");
+	console.log(`✅ Wrote ${results.length} records to ${outputPath}`);
+}
+
+function extractJsonBlock(text) {
+	const re = /```json\s*([\s\S]*?)```/i;
+	const m = text.match(re);
+	return m ? m?.[1] : text;
+}
+
+function getChatTemplate(question, response) {
+	return (
+		`<|im_start|>system
 You are AQA-Assistant, a SQL generator AI. 
 
 You are provided with a PostgreSQL schema for a university teaching‐quality assessment survey system. Each semester, students evaluate their lecturers’ performance in each class by assigning scores against a set of criteria and by leaving free‐text comments. Classes are taught by a single lecturer, belong to a specific subject, and each subject is managed by a faculty.
@@ -65,8 +76,11 @@ Your duties are:
 2. **Produce chart metadata**—a concise title and a description that clearly explain what the resulting chart illustrates.
 
 **Data overview**
-* **Point data** (`point` table): Each record holds a student’s score on one criterion for one class. To compute a class’s score for that criterion, use `(point.point / point.max_point) * 4`. Classes link to lecturers, subjects, faculties, and semesters.
-* **Comment data** (`comment` table): Contains students’ positive or negative free‐text feedback for each class.
+* **Point data** (\`point\` table): Each record holds a student’s score on one criterion for one class. To compute a class’s score for that criterion, use \`(
+			point.point / point.max_point
+		) *
+		4\`. Classes link to lecturers, subjects, faculties, and semesters.
+* **Comment data** (\`comment\` table): Contains students’ positive or negative free‐text feedback for each class.
 
 Always align your SQL precisely with the schema, and ensure your chart metadata accurately describe the dimensions and metrics shown.
 
@@ -85,7 +99,6 @@ When given a user's question, you must produce only raw JSON code with the foll�
     If chart_type is 'bar' or 'line' or 'stacked', include:
     "x_axis": "<Label for x-axis>",
     "y_axis": "<Label for y-axis>",
-    "y_axis_column": "<column_name for y-axis>",
     "series": {"column_name": "...", "label": "..."}[]
 
     If chart type is 'pie', include:
@@ -207,21 +220,20 @@ CREATE TABLE public.subject (
 - Don't use columns that are not present in the schema.
 - Use the table relationships noted above to join tables.
 - Alias name for returned columns should be in english.
-- To calculate point in the point table, use the formula: `point = point / max_point * 4`, don't use the `point` column directly.
+- To calculate point in the point table, use the formula: \`point = point / max_point * 4\`, don't use the \`point\` column directly.
 
-**Abbreviations**: These abbreviations are used in user's question and should be understood as follows:
-- `msc`: Mã số công chức (Civil servant code)
-- `ngach`: Ngạch (Rank)
-- `mscb`: Mã số cán bộ (Staff code)
-- `display_name`: Tên hiển thị (Display name)
-- `CNPM`: Công nghệ phần mềm (Software Engineering)
-- `CNTT`: Công nghệ thông tin (Information Technology)
-- `KHMT`: Khoa học máy tính (Computer Science)
-- `BMTL`: Bộ môn toán lý (Department of Mathematics and Physics)
-- `CNTN`: Cử nhân tài năng (Bachelor of Talent)
-- `KSTN`: Kỹ sư tài năng (Engineer of Talent)
-- `VB2CQ`: Văn bằng 2 chính quy (Regular second degree)
-- `CTTT`: Chương trình tiên tiến (Advanced program)
-- `CQUI`: Chính qui (Regular program)
-- `CLC`: Chất lượng cao (High quality program)
-"""
+<|im_end|>
+<|im_start|>user
+${question}
+<|im_end|>
+<|im_start|>assistant
+${response}
+<|im_end|>
+    `
+	);
+}
+
+buildDataset().catch((err) => {
+	console.error("Fatal error:", err);
+	process.exit(1);
+});
