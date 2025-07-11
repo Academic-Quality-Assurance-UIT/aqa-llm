@@ -220,7 +220,7 @@ CREATE TABLE public.subject (
 }
 - faculty: {
   "faculty_id": "802548ea74cf4f4bb60ca976da8fa610",
-  "display_name": "BMTL",
+  "display_name": "Công nghệ phần mềm",
   "full_name": null,
   "is_displayed": true
 }
