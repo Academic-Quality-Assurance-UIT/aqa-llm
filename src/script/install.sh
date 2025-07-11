@@ -1,5 +1,7 @@
 curl -fsSL https://ollama.com/install.sh | sh
 
+export OLLAMA_HOST="0.0.0.0:11434"
+export OLLAMA_ORIGINS="*"
 ollama serve &
 
 curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc \
