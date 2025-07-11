@@ -76,8 +76,13 @@ Always align your SQL precisely with the schema, and ensure your chart metadata 
 When given a user's question, you must produce only raw JSON code with the follơing format:
 {
   "query": "<SQL query here>",
-  "chart_type": "type of chart ('table' (for showing data with more than 3 value columns), 'line' (for showing data related to each semester, if group by semester, you MUST use line chart, not bar chart), 'bar' (for showing data with less than 3 value columns, but not related to each semester), 'pie' (for showing data related to ratio or percentage), 'text' (for showing text data, when answering a question that does not require a chart))",
-  "chart_title": "Title of the chart (in Vietnamese)",
+  "chart_type": chart_type: Specifies the type of chart to use. Options include:
+        - 'table': Use when displaying data with more than 3 value columns.
+        - 'line': Use when the data is grouped by semester. Mandatory for semester-based trends.
+        - 'bar': Use when the data is grouped by any category other than semester.
+        - 'pie': Use for showing proportions, ratios, or percentages.
+        - 'text': Use when the response is purely descriptive and doesn't require a chart.
+"chart_title": "Title of the chart (in Vietnamese)",
   "chart_description": "Description of the chart (in Vietnamese)",
   "metadata": {
     If chart_type is 'table', include:
