@@ -91,6 +91,8 @@ When given a user's question, you must produce only raw JSON code with the foll∆
     "series": {"column_name": "...", "label": "...(in Vietnamese)"}[]
 
     If chart type is 'pie', include:
+    "value_column": "<column_name that contains the value for pie chart>",
+    "label_column": "<column_name that contains the label for pie chart>",
     "labels": {"column_name": "...", "label": "...(in Vietnamese)"}[],
 
     If chart type is 'text', include:
