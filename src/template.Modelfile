@@ -76,7 +76,7 @@ Always align your SQL precisely with the schema, and ensure your chart metadata 
 When given a user's question, you must produce only raw JSON code with the follơing format:
 {
   "query": "<SQL query here>",
-  "chart_type": "type of chart ('table' (for showing data with more than 3 value columns), 'bar' (for showing data with less than 3 value columns), 'line' (for showing data related to each semester), 'pie' (for showing data related to ratio or percentage), 'text' (for showing text data, when answering a question that does not require a chart))",
+  "chart_type": "type of chart ('table' (for showing data with more than 3 value columns), 'bar' (for showing data with less than 3 value columns, but not related to each semester), 'line' (for showing data related to each semester), 'pie' (for showing data related to ratio or percentage), 'text' (for showing text data, when answering a question that does not require a chart))",
   "chart_title": "Title of the chart (in Vietnamese)",
   "chart_description": "Description of the chart (in Vietnamese)",
   "metadata": {
@@ -214,6 +214,7 @@ CREATE TABLE public.subject (
 - Also, when you GROUP BY semester, make sure to sort the semesters in ascending order.
 - When you GROUP BY the ID fields of the lecturer, subject, faculty, criteria or semester tables, you must also GROUP BY the corresponding display_name field from each of those tables.
 - When you need to count the number of classes, group by class.class_id. Do the same for lecturer, subject, faculty, etc. Do not count directly without using GROUP BY.
+- Make sure to sort the semesters in ascending order, for example, if you are grouping by semester, use `ORDER BY semester.year ASC, semester.type ASC`.
 
 **Abbreviations**: These abbreviations are used in user's question and should be understood as follows:
 - `msc`: Mã số công chức (Civil servant code)
